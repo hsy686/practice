@@ -72,6 +72,9 @@ button.iconbtn{padding:5px 8px;font-size:13px;line-height:1}
   <h2>熟练度系统 · 登录</h2>
   <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email">
   <input id="authPass" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
+  <label class="small" style="display:flex;align-items:center;gap:6px;margin:8px 0">
+    <input type="checkbox" id="rememberMe" style="width:auto"> 记住我（下次自动登录）
+  </label>
   <button onclick="doLogin()">登录</button>
   <button onclick="doSignup()" class="sec">注册新账号</button>
   <div id="authMsg" class="small" style="color:#ef4444;margin-top:8px;min-height:16px"></div>
@@ -348,7 +351,24 @@ async function afterLogin() {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('appBody').style.display = '';
   setSyncStatus('正在加载云端数据...', '#888');
-  await loadFromCloud();
+async function doLogin() {
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  const msg = document.getElementById('authMsg');
+  msg.style.color = '#ef4444';
+  if (!email || !pass) { msg.textContent = '请填邮箱和密码'; return; }
+  msg.textContent = '登录中...';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { msg.textContent = error.message; return; }
+  // 勾了记住我就保存
+  const remember = document.getElementById('rememberMe').checked;
+  if (remember) {
+    localStorage.setItem('saved_login', btoa(encodeURIComponent(email + '|' + pass)));
+  } else {
+    localStorage.removeItem('saved_login');
+  }
+  await afterLogin();
+}
   render();
   setSyncStatus('已同步 · ' + user.email, '#16a34a');
 }
@@ -1279,6 +1299,7 @@ function loadFile(e) {
 /* ============ 启动 ============ */
 (async () => {
   try {
+    // 先看有没有现成的 session
     const { data: { session } } = await sb.auth.getSession();
     if (session && session.user) {
       currentUser = session.user;
@@ -1288,10 +1309,23 @@ function loadFile(e) {
       await loadFromCloud();
       render();
       setSyncStatus('已同步 · ' + session.user.email, '#16a34a');
-    } else {
-      document.getElementById('authScreen').style.display = '';
-      document.getElementById('appBody').style.display = 'none';
+      return;
     }
+    // 没有 session，看有没有保存的凭据，自动登录
+    const saved = localStorage.getItem('saved_login');
+    if (saved) {
+      try {
+        const [email, pass] = decodeURIComponent(atob(saved)).split('|');
+        const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+        if (!error) {
+          await afterLogin();
+          return;
+        }
+      } catch (e) { console.warn(e); }
+    }
+    // 都没有，显示登录界面
+    document.getElementById('authScreen').style.display = '';
+    document.getElementById('appBody').style.display = 'none';
   } catch (e) {
     console.warn(e);
   }
