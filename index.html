@@ -6,6 +6,7 @@
 <title>熟练度系统</title>
 <meta name="theme-color" content="#2563eb">
 <link rel="manifest" href='data:application/manifest+json,{"name":"熟练度系统","short_name":"熟练度","start_url":".","display":"standalone","background_color":"#f6f7f9","theme_color":"#2563eb"}'>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 body{font-family:system-ui,-apple-system,sans-serif;max-width:820px;margin:20px auto;padding:0 12px;background:#f6f7f9;color:#222}
 h1{font-size:22px}
@@ -58,10 +59,30 @@ button.iconbtn{padding:5px 8px;font-size:13px;line-height:1}
 .subitem .bar{height:8px;margin-top:4px}
 .projstat{background:#fafafa;border:1px solid #eee;border-radius:8px;padding:8px;margin-top:6px}
 .modeTag{font-size:11px;background:#f3f4f6;color:#4b5563;padding:2px 6px;border-radius:999px}
+.auth-box{max-width:400px;margin:60px auto;padding:20px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.auth-box h2{margin:0 0 12px;font-size:20px}
+.auth-box input{width:100%;margin:6px 0;padding:10px}
+.auth-box button{width:100%;padding:10px;margin:4px 0}
+.syncbar{text-align:center;font-size:12px;color:#888;margin:8px 0}
 </style>
 </head>
 <body>
+
+<div id="authScreen" class="auth-box">
+  <h2>熟练度系统 · 登录</h2>
+  <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email">
+  <input id="authPass" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
+  <button onclick="doLogin()">登录</button>
+  <button onclick="doSignup()" class="sec">注册新账号</button>
+  <div id="authMsg" class="small" style="color:#ef4444;margin-top:8px;min-height:16px"></div>
+  <div class="hint" style="margin-top:10px">
+    首次使用请点「注册新账号」，注册后如收不到确认邮件，可在 Supabase 后台关闭邮箱确认。
+  </div>
+</div>
+
+<div id="appBody" style="display:none">
 <h1>熟练度系统</h1>
+<div class="syncbar" id="syncStatus">已同步</div>
 
 <div class="topbanner">
   <div>
@@ -167,6 +188,7 @@ button.iconbtn{padding:5px 8px;font-size:13px;line-height:1}
 <div class="card">
   <button class="sec" onclick="exportData()">导出备份</button>
   <button class="sec" onclick="importData()">导入备份</button>
+  <button class="warn" onclick="doLogout()">退出登录</button>
   <input type="file" id="file" hidden accept=".json" onchange="loadFile(event)">
 </div>
 
@@ -268,48 +290,145 @@ button.iconbtn{padding:5px 8px;font-size:13px;line-height:1}
     </div>
   </div>
 </div>
+</div>
 
 <script>
-let data = { projects: [] };
-try {
-  const raw = localStorage.getItem('practice_data');
-  if (raw) data = JSON.parse(raw);
-} catch (e) {}
-if (!Array.isArray(data.projects)) data.projects = [];
-data.projects.forEach(p => {
-  if (!Array.isArray(p.subs)) p.subs = [];
-  if (!Array.isArray(p.logs)) p.logs = [];
-  if (typeof p.groupMode !== 'boolean') p.groupMode = false;
-  p.subs.forEach(s => {
-    if (typeof s.levelEnabled !== 'boolean') s.levelEnabled = false;
-    if (typeof s.unit !== 'string') s.unit = '';
-    if (!Array.isArray(s.levels)) s.levels = [10,100,200,400,800];
-    if (typeof s.mult !== 'number') s.mult = 2;
-    if (typeof s.maxLevel !== 'number') s.maxLevel = 0;
-    if (typeof s.uncapped !== 'boolean') s.uncapped = true;
-    if (typeof s.count !== 'number') s.count = 0;
-    if (typeof s.target !== 'number') s.target = 1;
+const SUPABASE_URL = 'https://qbxanqkgnnqvfykkqsnv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jIc48DYaMcMNJBlGjiUWeA_wzBkg3Mv';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let data = { projects: [], ui: {} };
+let saveTimer = null;
+
+function setSyncStatus(txt, color) {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  el.textContent = txt;
+  el.style.color = color || '#888';
+}
+
+/* ============ 登录 ============ */
+async function doLogin() {
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  const msg = document.getElementById('authMsg');
+  msg.style.color = '#ef4444';
+  if (!email || !pass) { msg.textContent = '请填邮箱和密码'; return; }
+  msg.textContent = '登录中...';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { msg.textContent = error.message; return; }
+  await afterLogin();
+}
+async function doSignup() {
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  const msg = document.getElementById('authMsg');
+  msg.style.color = '#ef4444';
+  if (!email || !pass) { msg.textContent = '请填邮箱和密码'; return; }
+  if (pass.length < 6) { msg.textContent = '密码至少 6 位'; return; }
+  msg.textContent = '注册中...';
+  const { error } = await sb.auth.signUp({ email, password: pass });
+  if (error) { msg.textContent = error.message; return; }
+  msg.style.color = '#16a34a';
+  msg.textContent = '注册成功！如果开启了邮箱确认，请先去邮箱点确认再回来登录。';
+}
+async function doLogout() {
+  if (!confirm('退出登录？本地缓存会保留，但下次登录前不能同步。')) return;
+  await sb.auth.signOut();
+  currentUser = null;
+  document.getElementById('appBody').style.display = 'none';
+  document.getElementById('authScreen').style.display = '';
+  document.getElementById('authMsg').textContent = '';
+}
+async function afterLogin() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return;
+  currentUser = user;
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appBody').style.display = '';
+  setSyncStatus('正在加载云端数据...', '#888');
+  await loadFromCloud();
+  render();
+  setSyncStatus('已同步 · ' + user.email, '#16a34a');
+}
+
+/* ============ 云端读写 ============ */
+async function loadFromCloud() {
+  try {
+    const { data: row, error } = await sb.from('practice_data').select('data').eq('user_id', currentUser.id).maybeSingle();
+    if (error) { console.warn(error); setSyncStatus('云端读取失败，使用本地缓存', '#ef4444'); return; }
+    if (row && row.data) {
+      data = row.data;
+    } else {
+      // 云端没有，尝试从本地缓存迁移
+      try {
+        const raw = localStorage.getItem('practice_data');
+        if (raw) data = JSON.parse(raw);
+      } catch (e) {}
+      await saveToCloud();
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+  normalizeData();
+}
+function normalizeData() {
+  if (!data || typeof data !== 'object') data = { projects: [], ui: {} };
+  if (!Array.isArray(data.projects)) data.projects = [];
+  if (!data.ui) data.ui = {};
+  if (typeof data.ui.statsOpen !== 'boolean') data.ui.statsOpen = true;
+  if (typeof data.ui.addOpen !== 'boolean') data.ui.addOpen = true;
+  if (typeof data.ui.logsOpen !== 'boolean') data.ui.logsOpen = true;
+  if (!data.ui.subOpen) data.ui.subOpen = {};
+  if (!data.ui.projStatOpen) data.ui.projStatOpen = {};
+  if (!data.ui.projCollapsed) data.ui.projCollapsed = {};
+  data.projects.forEach(p => {
+    if (!Array.isArray(p.subs)) p.subs = [];
+    if (!Array.isArray(p.logs)) p.logs = [];
+    if (typeof p.groupMode !== 'boolean') p.groupMode = false;
+    p.subs.forEach(s => {
+      if (typeof s.levelEnabled !== 'boolean') s.levelEnabled = false;
+      if (typeof s.unit !== 'string') s.unit = '';
+      if (!Array.isArray(s.levels)) s.levels = [10,100,200,400,800];
+      if (typeof s.mult !== 'number') s.mult = 2;
+      if (typeof s.maxLevel !== 'number') s.maxLevel = 0;
+      if (typeof s.uncapped !== 'boolean') s.uncapped = true;
+      if (typeof s.count !== 'number') s.count = 0;
+      if (typeof s.target !== 'number') s.target = 1;
+    });
   });
-});
-if (!data.sortBy) data.sortBy = 'default';
-if (!data.ui) data.ui = {};
-if (typeof data.ui.statsOpen !== 'boolean') data.ui.statsOpen = true;
-if (typeof data.ui.addOpen !== 'boolean') data.ui.addOpen = true;
-if (typeof data.ui.logsOpen !== 'boolean') data.ui.logsOpen = true;
-if (!data.ui.subOpen) data.ui.subOpen = {};
-if (!data.ui.projStatOpen) data.ui.projStatOpen = {};
-if (!data.ui.projCollapsed) data.ui.projCollapsed = {};
-
-let editingId = null;
-let editingLog = null;
-let editingSubPid = null;
-let editingSubId = null;
-let editingSubGroupMode = false;
-let tsCounter = 0;
-
-function newTs() { tsCounter++; return Date.now() * 1000 + (tsCounter % 1000); }
-function persist() { localStorage.setItem('practice_data', JSON.stringify(data)); }
+}
+async function saveToCloud() {
+  if (!currentUser) return;
+  setSyncStatus('同步中...', '#888');
+  try {
+    const { error } = await sb.from('practice_data').upsert({
+      user_id: currentUser.id,
+      data: data,
+      updated_at: new Date().toISOString()
+    });
+    if (error) {
+      console.warn(error);
+      setSyncStatus('同步失败：' + error.message, '#ef4444');
+    } else {
+      setSyncStatus('已同步 · ' + new Date().toLocaleTimeString(), '#16a34a');
+    }
+  } catch (e) {
+    console.warn(e);
+    setSyncStatus('同步失败', '#ef4444');
+  }
+}
+function persist() {
+  // 本地缓存一份，离线也能看
+  try { localStorage.setItem('practice_data', JSON.stringify(data)); } catch (e) {}
+  // 云端延迟合并，避免连续点击时反复上传
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saveToCloud(); }, 400);
+}
 function save() { persist(); render(); }
+
+/* ============ 以下为原熟练度系统逻辑 ============ */
 function fmtDate(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 function today() { return fmtDate(new Date()); }
 function esc(s) { return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -560,6 +679,7 @@ function saveEdit() {
   closeEdit();
   save();
 }
+let editingId = null;
 function addLog(id, amount) {
   const p = data.projects.find(x => x.id === id);
   if (!p) return;
@@ -570,7 +690,7 @@ function addLog(id, amount) {
     if (!amt || amt <= 0) return alert('请输入大于 0 的数量');
     input.value = '';
   }
-  p.logs.push({ date: today(), amount: Number(amt), ts: newTs() });
+  p.logs.push({ date: today(), amount: Number(amt), ts: Date.now() + Math.floor(Math.random()*1000) });
   save();
 }
 function delLog(pid, ts) {
@@ -579,6 +699,7 @@ function delLog(pid, ts) {
   p.logs = p.logs.filter(l => l.ts !== ts);
   save();
 }
+let editingLog = null;
 function openLogEdit(pid, ts) {
   const p = data.projects.find(x => x.id === pid);
   if (!p) return;
@@ -606,6 +727,9 @@ function saveLogEdit() {
   l.date = d; l.amount = a;
   closeLogEdit(); save();
 }
+let editingSubPid = null;
+let editingSubId = null;
+let editingSubGroupMode = false;
 function openSubEdit(pid, subId) {
   const p = data.projects.find(x => x.id === pid);
   if (!p) return;
@@ -712,7 +836,7 @@ function practiceSub(pid, subId, amount) {
   }
   amt = Number(amt);
   s.count = num((s.count || 0) + amt);
-  p.logs.push({ date: today(), amount: amt, ts: newTs(), subId: subId });
+  p.logs.push({ date: today(), amount: amt, ts: Date.now() + Math.floor(Math.random()*1000), subId: subId });
   save();
 }
 function undoSub(pid, subId) {
@@ -852,7 +976,6 @@ function render() {
     ).join('');
   }
 }
-
 function renderProjectCard(p) {
   const t = total(p);
   const td = todayTotal(p);
@@ -953,7 +1076,6 @@ function renderProjectCard(p) {
     '</div>' +
   '</div>';
 }
-
 function renderSubItem(p, s) {
   const unit = s.unit || '次';
   const isGroup = !!p.groupMode;
@@ -1025,7 +1147,6 @@ function renderSubItem(p, s) {
     '</div>' +
   '</div>';
 }
-
 function renderStats() {
   const series7 = dailySeries(data.projects, 7);
   const maxV = Math.max.apply(null, series7.map(x => x.v).concat([1]));
@@ -1146,29 +1267,7 @@ function loadFile(e) {
       const obj = JSON.parse(r.result);
       if (!obj || !Array.isArray(obj.projects)) throw new Error('格式错误');
       data = obj;
-      if (!data.sortBy) data.sortBy = 'default';
-      if (!data.ui) data.ui = {};
-      if (typeof data.ui.statsOpen !== 'boolean') data.ui.statsOpen = true;
-      if (typeof data.ui.addOpen !== 'boolean') data.ui.addOpen = true;
-      if (typeof data.ui.logsOpen !== 'boolean') data.ui.logsOpen = true;
-      if (!data.ui.subOpen) data.ui.subOpen = {};
-      if (!data.ui.projStatOpen) data.ui.projStatOpen = {};
-      if (!data.ui.projCollapsed) data.ui.projCollapsed = {};
-      data.projects.forEach(p => {
-        if (!Array.isArray(p.logs)) p.logs = [];
-        if (!Array.isArray(p.subs)) p.subs = [];
-        if (typeof p.groupMode !== 'boolean') p.groupMode = false;
-        p.subs.forEach(s => {
-          if (typeof s.levelEnabled !== 'boolean') s.levelEnabled = false;
-          if (typeof s.unit !== 'string') s.unit = '';
-          if (!Array.isArray(s.levels)) s.levels = [10,100,200,400,800];
-          if (typeof s.mult !== 'number') s.mult = 2;
-          if (typeof s.maxLevel !== 'number') s.maxLevel = 0;
-          if (typeof s.uncapped !== 'boolean') s.uncapped = true;
-          if (typeof s.count !== 'number') s.count = 0;
-          if (typeof s.target !== 'number') s.target = 1;
-        });
-      });
+      normalizeData();
       save();
     } catch (err) {
       alert('导入失败：' + err.message);
@@ -1176,7 +1275,27 @@ function loadFile(e) {
   };
   r.readAsText(f);
 }
-render();
+
+/* ============ 启动 ============ */
+(async () => {
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session && session.user) {
+      currentUser = session.user;
+      document.getElementById('authScreen').style.display = 'none';
+      document.getElementById('appBody').style.display = '';
+      setSyncStatus('正在加载云端数据...', '#888');
+      await loadFromCloud();
+      render();
+      setSyncStatus('已同步 · ' + session.user.email, '#16a34a');
+    } else {
+      document.getElementById('authScreen').style.display = '';
+      document.getElementById('appBody').style.display = 'none';
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+})();
 </script>
 </body>
 </html>
