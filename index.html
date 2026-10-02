@@ -1,0 +1,1182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>熟练度系统</title>
+<meta name="theme-color" content="#2563eb">
+<link rel="manifest" href='data:application/manifest+json,{"name":"熟练度系统","short_name":"熟练度","start_url":".","display":"standalone","background_color":"#f6f7f9","theme_color":"#2563eb"}'>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;max-width:820px;margin:20px auto;padding:0 12px;background:#f6f7f9;color:#222}
+h1{font-size:22px}
+h2{font-size:16px;margin:0 0 8px}
+h3{font-size:14px;margin:14px 0 6px}
+.card{background:#fff;border-radius:12px;padding:12px;margin:10px 0;box-shadow:0 1px 4px #0001}
+.card.mini-card{padding:10px 12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+label.field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#555}
+input,select,button{padding:8px;border:1px solid #ccc;border-radius:8px;font-size:14px;box-sizing:border-box}
+input[type=number]{width:110px}
+button{background:#2563eb;color:#fff;border:0;cursor:pointer}
+button.sec{background:#e5e7eb;color:#111}
+button.warn{background:#ef4444;color:#fff}
+button.ok{background:#22c55e;color:#fff}
+button.mini{padding:5px 9px;font-size:13px}
+button.iconbtn{padding:5px 8px;font-size:13px;line-height:1}
+.tag{font-size:12px;background:#eef2ff;color:#3730a3;padding:2px 6px;border-radius:999px}
+.tag.lv{background:#fef3c7;color:#92400e;font-weight:700}
+.tag.streak{background:#fee2e2;color:#991b1b;font-weight:700}
+.tag.done{background:#dcfce7;color:#166534;font-weight:700}
+.tag.gray{background:#f3f4f6;color:#4b5563}
+.small{font-size:12px;color:#666;margin-top:4px}
+.bar{height:10px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-top:8px}
+.bar>div{height:100%;background:linear-gradient(90deg,#2563eb,#7c3aed);width:0;transition:width .3s}
+.bar>div.green{background:linear-gradient(90deg,#22c55e,#16a34a)}
+.log{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #eee;font-size:14px;align-items:center}
+.log:last-child{border-bottom:0}
+.hint{font-size:12px;color:#888;margin-top:6px}
+.topbanner{background:linear-gradient(90deg,#fef3c7,#fee2e2);border-radius:12px;padding:12px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.topbanner b{font-size:20px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:99}
+.modal.show{display:flex}
+.modal-box{background:#fff;border-radius:12px;padding:16px;width:100%;max-width:560px;max-height:90vh;overflow:auto}
+.modal-box h3{margin:0 0 12px;font-size:18px}
+.chart{display:flex;align-items:flex-end;gap:6px;height:110px;margin-top:10px}
+.chart.mini{height:70px;gap:4px}
+.chart .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.chart .bar2{width:100%;background:linear-gradient(180deg,#2563eb,#7c3aed);border-radius:6px 6px 0 0;min-height:2px}
+.chart .lbl{font-size:11px;color:#666;margin-top:4px}
+.chart .num{font-size:11px;color:#3730a3;margin-bottom:2px}
+.chart.mini .lbl{font-size:10px}
+.chart.mini .num{font-size:10px}
+.statrow{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:14px}
+.statrow:last-child{border-bottom:0}
+.todo-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #eee;font-size:14px}
+.todo-item:last-child{border-bottom:0}
+.subarea{margin-top:10px;padding-top:10px;border-top:1px dashed #ddd}
+.subitem{background:#fafafa;border:1px solid #eee;border-radius:8px;padding:8px;margin-top:6px}
+.subitem .bar{height:8px;margin-top:4px}
+.projstat{background:#fafafa;border:1px solid #eee;border-radius:8px;padding:8px;margin-top:6px}
+.modeTag{font-size:11px;background:#f3f4f6;color:#4b5563;padding:2px 6px;border-radius:999px}
+</style>
+</head>
+<body>
+<h1>熟练度系统</h1>
+
+<div class="topbanner">
+  <div>
+    <div class="small" style="margin:0">连续打卡</div>
+    <div><b id="streakAll">0</b> 天 🔥</div>
+  </div>
+  <div style="flex:1;min-width:200px" id="todayTodo"></div>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <h2 style="margin:0">添加熟练度项目</h2>
+    <button class="sec mini" id="addToggleBtn" onclick="toggleAdd()">折叠</button>
+  </div>
+  <div id="addBody">
+    <div class="row" style="margin-top:8px">
+      <label class="field" style="flex:1;min-width:140px">项目名
+        <input id="pName" placeholder="如 健身 / 数据结构">
+      </label>
+      <label class="field" style="width:100px">分类
+        <input id="pCategory" placeholder="学习">
+      </label>
+      <label class="field" style="width:100px">单位
+        <input id="pUnit" placeholder="次">
+      </label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label class="field" style="flex:1;min-width:220px">等级阈值（逗号分隔，从低到高）
+        <input id="pLevels" value="10,100,200,400,800">
+      </label>
+      <label class="field" style="width:100px">升级倍数
+        <input id="pMult" type="number" value="2" min="1" step="0.1">
+      </label>
+      <label class="field" style="width:130px">最高等级（空=不限）
+        <input id="pMax" type="number" placeholder="不限" min="1">
+      </label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label class="field" style="width:160px">每日目标（空=不设）
+        <input id="pDaily" type="number" placeholder="如 30" min="1">
+      </label>
+      <label class="small" style="align-self:flex-end"><input type="checkbox" id="pUncapped" checked style="width:auto"> 不封顶</label>
+      <label class="small" style="align-self:flex-end"><input type="checkbox" id="pGroupMode" style="width:auto"> 分组模式</label>
+      <button style="align-self:flex-end" onclick="addProject()">添加项目</button>
+    </div>
+    <div class="hint">分组模式下，项目本身不记录、不升级，子项目只做独立升级，不设过关。例：健身 → 跑步 / 引体向上 / 俯卧撑。</div>
+  </div>
+</div>
+
+<div class="card" id="todoCard" style="display:none">
+  <h2>今日待练</h2>
+  <div id="todoList"></div>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <h2 style="margin:0">我的项目</h2>
+    <label class="field" style="width:190px">排序
+      <select id="sortBy" onchange="setSort(this.value)">
+        <option value="default">按添加顺序（可手动调整）</option>
+        <option value="levelDesc">等级 高 → 低</option>
+        <option value="levelAsc">等级 低 → 高</option>
+        <option value="totalDesc">累计 多 → 少</option>
+        <option value="totalAsc">累计 少 → 多</option>
+        <option value="name">按名称</option>
+      </select>
+    </label>
+  </div>
+  <div class="hint">项目：用卡片右上角 ↑ ↓ 手动调整顺序。<br>子项目：用子项目右侧 ↑ ↓ 手动调整顺序。</div>
+</div>
+
+<div id="projects"></div>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <h2 style="margin:0">统计</h2>
+    <button class="sec mini" id="statsToggleBtn" onclick="toggleStats()">折叠</button>
+  </div>
+  <div id="statsBody">
+    <div class="small" style="margin:8px 0 0">最近 7 天练习量（全部项目）</div>
+    <div class="chart" id="chart7"></div>
+    <div style="margin-top:12px">
+      <div class="statrow"><span>本周总量（近 7 天）</span><b id="weekSum">0</b></div>
+      <div class="statrow"><span>上周总量（7-14 天前）</span><b id="prevWeekSum">0</b></div>
+      <div class="statrow"><span>本月总量（近 30 天）</span><b id="monthSum">0</b></div>
+      <div class="statrow"><span>全部累计</span><b id="allSum">0</b></div>
+    </div>
+    <h3>分项目统计</h3>
+    <div id="perProjectStats"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <h2 style="margin:0">最近记录</h2>
+    <button class="sec mini" id="logsToggleBtn" onclick="toggleLogs()">折叠</button>
+  </div>
+  <div id="logsBody">
+    <div id="logs"></div>
+  </div>
+</div>
+
+<div class="card">
+  <button class="sec" onclick="exportData()">导出备份</button>
+  <button class="sec" onclick="importData()">导入备份</button>
+  <input type="file" id="file" hidden accept=".json" onchange="loadFile(event)">
+</div>
+
+<div class="modal" id="editModal">
+  <div class="modal-box">
+    <h3>编辑项目</h3>
+    <div class="row">
+      <label class="field" style="flex:1;min-width:140px">项目名
+        <input id="eName">
+      </label>
+      <label class="field" style="width:110px">分类
+        <input id="eCategory">
+      </label>
+      <label class="field" style="width:110px">单位
+        <input id="eUnit">
+      </label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label class="field" style="flex:1;min-width:220px">等级阈值
+        <input id="eLevels">
+      </label>
+      <label class="field" style="width:100px">升级倍数
+        <input id="eMult" type="number" min="1" step="0.1">
+      </label>
+      <label class="field" style="width:120px">最高等级
+        <input id="eMax" type="number" min="1" placeholder="不限">
+      </label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label class="field" style="width:160px">每日目标（空=不设）
+        <input id="eDaily" type="number" min="1" placeholder="不设">
+      </label>
+      <label class="small" style="align-self:flex-end"><input type="checkbox" id="eUncapped" style="width:auto"> 不封顶</label>
+      <label class="small" style="align-self:flex-end"><input type="checkbox" id="eGroupMode" style="width:auto"> 分组模式</label>
+    </div>
+    <div class="hint">分组模式下，本项目只作为分类，不自己记录，子项目只升级不过关。</div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="sec" onclick="closeEdit()">取消</button>
+      <button onclick="saveEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="logModal">
+  <div class="modal-box">
+    <h3>编辑记录</h3>
+    <div class="row">
+      <label class="field" style="flex:1">日期
+        <input id="lDate" type="date">
+      </label>
+      <label class="field" style="width:130px">数量
+        <input id="lAmount" type="number" min="0" step="0.1">
+      </label>
+    </div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="sec" onclick="closeLogEdit()">取消</button>
+      <button onclick="saveLogEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="subModal">
+  <div class="modal-box">
+    <h3 id="subModalTitle">添加子项目</h3>
+    <div class="row">
+      <label class="field" style="flex:1;min-width:140px">名称
+        <input id="sName" placeholder="如 俯卧撑">
+      </label>
+      <label class="field" style="width:110px">单位
+        <input id="sUnit" placeholder="个/公里">
+      </label>
+      <label class="field" style="width:120px" id="sTargetBox">过关次数
+        <input id="sTarget" type="number" min="1" step="0.1" placeholder="如 100">
+      </label>
+    </div>
+    <div class="row" style="margin-top:10px" id="sLevelEnableBox">
+      <label class="small"><input type="checkbox" id="sLevelEnabled" onchange="updateSubModalVisibility()" style="width:auto"> 启用独立等级（这个子项目单独升级）</label>
+    </div>
+    <div id="sLevelBox" style="display:none">
+      <div class="row" style="margin-top:8px">
+        <label class="field" style="flex:1;min-width:200px">等级阈值
+          <input id="sLevels" value="10,100,200,400,800">
+        </label>
+        <label class="field" style="width:100px">升级倍数
+          <input id="sMult" type="number" min="1" step="0.1" value="2">
+        </label>
+        <label class="field" style="width:120px">最高等级
+          <input id="sMax" type="number" min="1" placeholder="不限">
+        </label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="small"><input type="checkbox" id="sUncapped" checked style="width:auto"> 不封顶</label>
+      </div>
+    </div>
+    <div class="hint" id="sHint">例：俯卧撑 单位「个」，阈值 10,100,200,400,800 → Lv.1=10，Lv.2=100……</div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="sec" onclick="closeSubEdit()">取消</button>
+      <button onclick="saveSubEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let data = { projects: [] };
+try {
+  const raw = localStorage.getItem('practice_data');
+  if (raw) data = JSON.parse(raw);
+} catch (e) {}
+if (!Array.isArray(data.projects)) data.projects = [];
+data.projects.forEach(p => {
+  if (!Array.isArray(p.subs)) p.subs = [];
+  if (!Array.isArray(p.logs)) p.logs = [];
+  if (typeof p.groupMode !== 'boolean') p.groupMode = false;
+  p.subs.forEach(s => {
+    if (typeof s.levelEnabled !== 'boolean') s.levelEnabled = false;
+    if (typeof s.unit !== 'string') s.unit = '';
+    if (!Array.isArray(s.levels)) s.levels = [10,100,200,400,800];
+    if (typeof s.mult !== 'number') s.mult = 2;
+    if (typeof s.maxLevel !== 'number') s.maxLevel = 0;
+    if (typeof s.uncapped !== 'boolean') s.uncapped = true;
+    if (typeof s.count !== 'number') s.count = 0;
+    if (typeof s.target !== 'number') s.target = 1;
+  });
+});
+if (!data.sortBy) data.sortBy = 'default';
+if (!data.ui) data.ui = {};
+if (typeof data.ui.statsOpen !== 'boolean') data.ui.statsOpen = true;
+if (typeof data.ui.addOpen !== 'boolean') data.ui.addOpen = true;
+if (typeof data.ui.logsOpen !== 'boolean') data.ui.logsOpen = true;
+if (!data.ui.subOpen) data.ui.subOpen = {};
+if (!data.ui.projStatOpen) data.ui.projStatOpen = {};
+if (!data.ui.projCollapsed) data.ui.projCollapsed = {};
+
+let editingId = null;
+let editingLog = null;
+let editingSubPid = null;
+let editingSubId = null;
+let editingSubGroupMode = false;
+let tsCounter = 0;
+
+function newTs() { tsCounter++; return Date.now() * 1000 + (tsCounter % 1000); }
+function persist() { localStorage.setItem('practice_data', JSON.stringify(data)); }
+function save() { persist(); render(); }
+function fmtDate(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function today() { return fmtDate(new Date()); }
+function esc(s) { return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function num(v) { return Math.round(Number(v) * 100) / 100; }
+function total(p) { return p.logs.reduce((s, l) => s + Number(l.amount || 0), 0); }
+function todayTotal(p) { const t = today(); return p.logs.filter(l => l.date === t).reduce((s, l) => s + Number(l.amount || 0), 0); }
+function sumSince(p, days) {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days + 1);
+  const c = fmtDate(cutoff);
+  return p.logs.filter(l => l.date >= c).reduce((s, l) => s + Number(l.amount || 0), 0);
+}
+function sumBetween(p, fromDaysAgo, toDaysAgo) {
+  const a = new Date(); a.setDate(a.getDate() - fromDaysAgo);
+  const b = new Date(); b.setDate(b.getDate() - toDaysAgo);
+  const af = fmtDate(a), bf = fmtDate(b);
+  return p.logs.filter(l => l.date >= af && l.date <= bf).reduce((s, l) => s + Number(l.amount || 0), 0);
+}
+function dailySeries(projectList, days) {
+  const out = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = fmtDate(d);
+    let sum = 0;
+    projectList.forEach(p => p.logs.forEach(l => { if (l.date === key) sum += Number(l.amount || 0); }));
+    out.push({ date: key, v: sum });
+  }
+  return out;
+}
+function parseLevels(str) {
+  return String(str).split(/[,，\s]+/).map(x => Number(x)).filter(n => n > 0).sort((a,b)=>a-b);
+}
+function getThresholds(cfg, value) {
+  let th = (cfg.levels || []).slice();
+  if (!th.length) th = [10];
+  if (cfg.uncapped) {
+    let guard = 0;
+    while (th[th.length-1] < value && guard++ < 500) {
+      th.push(Math.round(th[th.length-1] * (cfg.mult || 2)));
+    }
+  }
+  return th;
+}
+function getLevelInfo(cfg, value) {
+  const th = getThresholds(cfg, value);
+  let level = 0;
+  for (let i = 0; i < th.length; i++) {
+    if (value >= th[i]) level = i + 1;
+    else break;
+  }
+  let capped = false;
+  if (cfg.maxLevel > 0 && level >= cfg.maxLevel) { level = cfg.maxLevel; capped = true; }
+  if (!cfg.uncapped && level >= (cfg.levels || []).length) capped = true;
+  let next = null;
+  if (!capped) {
+    if (level < th.length) next = th[level];
+    else if (cfg.uncapped) next = Math.round(th[th.length-1] * (cfg.mult || 2));
+  }
+  const base = level > 0 ? th[level-1] : 0;
+  return { level, next, base, capped };
+}
+function projectStreak(p) {
+  const dates = new Set(p.logs.map(l => l.date));
+  if (!dates.size) return 0;
+  let d = new Date(); let key = fmtDate(d);
+  if (!dates.has(key)) {
+    d.setDate(d.getDate() - 1); key = fmtDate(d);
+    if (!dates.has(key)) return 0;
+  }
+  let streak = 0;
+  while (dates.has(key) && streak < 3650) {
+    streak++; d.setDate(d.getDate() - 1); key = fmtDate(d);
+  }
+  return streak;
+}
+function globalStreak() {
+  const dates = new Set();
+  data.projects.forEach(p => p.logs.forEach(l => dates.add(l.date)));
+  if (!dates.size) return 0;
+  let d = new Date(); let key = fmtDate(d);
+  if (!dates.has(key)) {
+    d.setDate(d.getDate() - 1); key = fmtDate(d);
+    if (!dates.has(key)) return 0;
+  }
+  let streak = 0;
+  while (dates.has(key) && streak < 3650) {
+    streak++; d.setDate(d.getDate() - 1); key = fmtDate(d);
+  }
+  return streak;
+}
+function setSort(v) { data.sortBy = v; persist(); render(); }
+function sortedProjects() {
+  const arr = data.projects.slice();
+  const s = data.sortBy || 'default';
+  if (s === 'levelDesc') arr.sort((a,b)=> getLevelInfo(b, total(b)).level - getLevelInfo(a, total(a)).level);
+  else if (s === 'levelAsc') arr.sort((a,b)=> getLevelInfo(a, total(a)).level - getLevelInfo(b, total(b)).level);
+  else if (s === 'totalDesc') arr.sort((a,b)=> total(b) - total(a));
+  else if (s === 'totalAsc') arr.sort((a,b)=> total(a) - total(b));
+  else if (s === 'name') arr.sort((a,b)=> a.name.localeCompare(b.name, 'zh'));
+  return arr;
+}
+function subIsLevelOnly(p, s) { return !!p.groupMode || !!s.levelEnabled; }
+function toggleAdd() {
+  data.ui.addOpen = !data.ui.addOpen;
+  const body = document.getElementById('addBody');
+  const btn = document.getElementById('addToggleBtn');
+  if (body) body.style.display = data.ui.addOpen ? '' : 'none';
+  if (btn) btn.textContent = data.ui.addOpen ? '折叠' : '展开';
+  persist();
+}
+function toggleStats() {
+  data.ui.statsOpen = !data.ui.statsOpen;
+  const body = document.getElementById('statsBody');
+  const btn = document.getElementById('statsToggleBtn');
+  if (body) body.style.display = data.ui.statsOpen ? '' : 'none';
+  if (btn) btn.textContent = data.ui.statsOpen ? '折叠' : '展开';
+  persist();
+}
+function toggleLogs() {
+  data.ui.logsOpen = !data.ui.logsOpen;
+  const body = document.getElementById('logsBody');
+  const btn = document.getElementById('logsToggleBtn');
+  if (body) body.style.display = data.ui.logsOpen ? '' : 'none';
+  if (btn) btn.textContent = data.ui.logsOpen ? '折叠' : '展开';
+  persist();
+}
+function toggleSub(pid) {
+  const el = document.getElementById('subBody-' + pid);
+  const btn = document.getElementById('subToggle-' + pid);
+  if (!el) return;
+  const willOpen = el.style.display === 'none';
+  el.style.display = willOpen ? '' : 'none';
+  data.ui.subOpen[pid] = willOpen;
+  if (btn) btn.textContent = willOpen ? '折叠' : '展开';
+  persist();
+}
+function toggleProjStat(pid) {
+  const el = document.getElementById('projStat-' + pid);
+  const btn = document.getElementById('projStatToggle-' + pid);
+  if (!el) return;
+  const willOpen = el.style.display === 'none';
+  el.style.display = willOpen ? '' : 'none';
+  data.ui.projStatOpen[pid] = willOpen;
+  if (btn) btn.textContent = willOpen ? '折叠' : '展开';
+  persist();
+}
+function toggleProjCollapse(pid) {
+  const cur = data.ui.projCollapsed[pid] === true;
+  data.ui.projCollapsed[pid] = !cur;
+  save();
+}
+function moveProject(id, dir) {
+  const idx = data.projects.findIndex(p => p.id === id);
+  if (idx < 0) return;
+  const target = idx + dir;
+  if (target < 0 || target >= data.projects.length) return;
+  const tmp = data.projects[idx];
+  data.projects[idx] = data.projects[target];
+  data.projects[target] = tmp;
+  if (data.sortBy !== 'default') data.sortBy = 'default';
+  save();
+}
+function moveSub(pid, subId, dir) {
+  const p = data.projects.find(x => x.id === pid);
+  if (!p || !Array.isArray(p.subs)) return;
+  const idx = p.subs.findIndex(s => s.id === subId);
+  if (idx < 0) return;
+  const target = idx + dir;
+  if (target < 0 || target >= p.subs.length) return;
+  const tmp = p.subs[idx];
+  p.subs[idx] = p.subs[target];
+  p.subs[target] = tmp;
+  save();
+}
+function addProject() {
+  const name = document.getElementById('pName').value.trim();
+  if (!name) return alert('请输入项目名称');
+  const category = document.getElementById('pCategory').value.trim() || '未分类';
+  const unit = document.getElementById('pUnit').value.trim() || '次';
+  const levels = parseLevels(document.getElementById('pLevels').value);
+  if (!levels.length) return alert('请填写至少一个等级阈值');
+  const mult = Number(document.getElementById('pMult').value) || 2;
+  const maxRaw = document.getElementById('pMax').value.trim();
+  const maxLevel = maxRaw ? Number(maxRaw) : 0;
+  const dailyRaw = document.getElementById('pDaily').value.trim();
+  const dailyGoal = dailyRaw ? Number(dailyRaw) : 0;
+  const uncapped = document.getElementById('pUncapped').checked;
+  const groupMode = document.getElementById('pGroupMode').checked;
+  data.projects.push({
+    id: Date.now(),
+    name, category, unit,
+    levels, mult,
+    maxLevel: maxLevel > 0 ? maxLevel : 0,
+    dailyGoal, uncapped, groupMode,
+    logs: [], subs: []
+  });
+  document.getElementById('pName').value = '';
+  document.getElementById('pCategory').value = '';
+  document.getElementById('pUnit').value = '';
+  document.getElementById('pDaily').value = '';
+  document.getElementById('pGroupMode').checked = false;
+  save();
+}
+function delProject(id) {
+  if (!confirm('删除这个项目和它的所有记录？')) return;
+  data.projects = data.projects.filter(p => p.id !== id);
+  delete data.ui.subOpen[id];
+  delete data.ui.projStatOpen[id];
+  delete data.ui.projCollapsed[id];
+  save();
+}
+function openEdit(id) {
+  const p = data.projects.find(x => x.id === id);
+  if (!p) return;
+  editingId = id;
+  document.getElementById('eName').value = p.name;
+  document.getElementById('eCategory').value = p.category;
+  document.getElementById('eUnit').value = p.unit;
+  document.getElementById('eLevels').value = (p.levels || []).join(',');
+  document.getElementById('eMult').value = p.mult || 2;
+  document.getElementById('eMax').value = p.maxLevel > 0 ? p.maxLevel : '';
+  document.getElementById('eDaily').value = p.dailyGoal > 0 ? p.dailyGoal : '';
+  document.getElementById('eUncapped').checked = !!p.uncapped;
+  document.getElementById('eGroupMode').checked = !!p.groupMode;
+  document.getElementById('editModal').classList.add('show');
+}
+function closeEdit() {
+  editingId = null;
+  document.getElementById('editModal').classList.remove('show');
+}
+function saveEdit() {
+  const p = data.projects.find(x => x.id === editingId);
+  if (!p) return closeEdit();
+  const name = document.getElementById('eName').value.trim();
+  if (!name) return alert('项目名不能为空');
+  const levels = parseLevels(document.getElementById('eLevels').value);
+  if (!levels.length) return alert('请填写至少一个等级阈值');
+  p.name = name;
+  p.category = document.getElementById('eCategory').value.trim() || '未分类';
+  p.unit = document.getElementById('eUnit').value.trim() || '次';
+  p.levels = levels;
+  p.mult = Number(document.getElementById('eMult').value) || 2;
+  const maxRaw = document.getElementById('eMax').value.trim();
+  p.maxLevel = maxRaw ? Number(maxRaw) : 0;
+  const dailyRaw = document.getElementById('eDaily').value.trim();
+  p.dailyGoal = dailyRaw ? Number(dailyRaw) : 0;
+  p.uncapped = document.getElementById('eUncapped').checked;
+  p.groupMode = document.getElementById('eGroupMode').checked;
+  closeEdit();
+  save();
+}
+function addLog(id, amount) {
+  const p = data.projects.find(x => x.id === id);
+  if (!p) return;
+  let amt = amount;
+  if (amt === undefined) {
+    const input = document.getElementById('amount-' + id);
+    amt = Number(input.value);
+    if (!amt || amt <= 0) return alert('请输入大于 0 的数量');
+    input.value = '';
+  }
+  p.logs.push({ date: today(), amount: Number(amt), ts: newTs() });
+  save();
+}
+function delLog(pid, ts) {
+  const p = data.projects.find(x => x.id === pid);
+  if (!p) return;
+  p.logs = p.logs.filter(l => l.ts !== ts);
+  save();
+}
+function openLogEdit(pid, ts) {
+  const p = data.projects.find(x => x.id === pid);
+  if (!p) return;
+  const l = p.logs.find(x => x.ts === ts);
+  if (!l) return;
+  editingLog = { pid, ts };
+  document.getElementById('lDate').value = l.date;
+  document.getElementById('lAmount').value = l.amount;
+  document.getElementById('logModal').classList.add('show');
+}
+function closeLogEdit() {
+  editingLog = null;
+  document.getElementById('logModal').classList.remove('show');
+}
+function saveLogEdit() {
+  if (!editingLog) return;
+  const p = data.projects.find(x => x.id === editingLog.pid);
+  if (!p) return closeLogEdit();
+  const l = p.logs.find(x => x.ts === editingLog.ts);
+  if (!l) return closeLogEdit();
+  const d = document.getElementById('lDate').value;
+  const a = Number(document.getElementById('lAmount').value);
+  if (!d) return alert('请选择日期');
+  if (!a || a <= 0) return alert('数量要大于 0');
+  l.date = d; l.amount = a;
+  closeLogEdit(); save();
+}
+function openSubEdit(pid, subId) {
+  const p = data.projects.find(x => x.id === pid);
+  if (!p) return;
+  editingSubPid = pid;
+  editingSubId = subId || null;
+  editingSubGroupMode = !!p.groupMode;
+  const isGroup = !!p.groupMode;
+  const s = subId ? p.subs.find(x => x.id === subId) : null;
+
+  document.getElementById('sTargetBox').style.display = isGroup ? 'none' : '';
+  document.getElementById('sLevelEnableBox').style.display = isGroup ? 'none' : '';
+
+  if (s) {
+    document.getElementById('subModalTitle').textContent = '编辑子项目';
+    document.getElementById('sName').value = s.name;
+    document.getElementById('sUnit').value = s.unit || '';
+    document.getElementById('sTarget').value = s.target || 1;
+    document.getElementById('sLevelEnabled').checked = isGroup ? true : !!s.levelEnabled;
+    document.getElementById('sLevels').value = (s.levels || [10,100,200,400,800]).join(',');
+    document.getElementById('sMult').value = s.mult || 2;
+    document.getElementById('sMax').value = s.maxLevel > 0 ? s.maxLevel : '';
+    document.getElementById('sUncapped').checked = s.uncapped !== false;
+  } else {
+    document.getElementById('subModalTitle').textContent = '添加子项目';
+    document.getElementById('sName').value = '';
+    document.getElementById('sUnit').value = '';
+    document.getElementById('sTarget').value = 100;
+    document.getElementById('sLevelEnabled').checked = isGroup ? true : false;
+    document.getElementById('sLevels').value = '10,100,200,400,800';
+    document.getElementById('sMult').value = 2;
+    document.getElementById('sMax').value = '';
+    document.getElementById('sUncapped').checked = true;
+  }
+  document.getElementById('sHint').textContent = isGroup
+    ? '分组模式下子项目只升级，不设过关。例：俯卧撑 单位「个」，阈值 10,100,200,400,800 → Lv.1=10，Lv.2=100……'
+    : '例：俯卧撑 单位「个」，阈值 10,100,200,400,800 → Lv.1=10，Lv.2=100……';
+  updateSubModalVisibility();
+  document.getElementById('subModal').classList.add('show');
+}
+function closeSubEdit() {
+  editingSubPid = null; editingSubId = null;
+  document.getElementById('subModal').classList.remove('show');
+}
+function updateSubModalVisibility() {
+  if (editingSubGroupMode) {
+    document.getElementById('sLevelBox').style.display = '';
+    return;
+  }
+  const on = document.getElementById('sLevelEnabled').checked;
+  document.getElementById('sLevelBox').style.display = on ? '' : 'none';
+}
+function saveSubEdit() {
+  const p = data.projects.find(x => x.id === editingSubPid);
+  if (!p) return closeSubEdit();
+  const isGroup = !!p.groupMode;
+  const name = document.getElementById('sName').value.trim();
+  if (!name) return alert('请输入子项目名称');
+  const unit = document.getElementById('sUnit').value.trim();
+  const target = isGroup ? 1 : (Number(document.getElementById('sTarget').value) || 1);
+  const levelEnabled = isGroup ? true : document.getElementById('sLevelEnabled').checked;
+  const levels = parseLevels(document.getElementById('sLevels').value);
+  if (levelEnabled && !levels.length) return alert('请填写等级阈值');
+  const mult = Number(document.getElementById('sMult').value) || 2;
+  const maxRaw = document.getElementById('sMax').value.trim();
+  const maxLevel = maxRaw ? Number(maxRaw) : 0;
+  const uncapped = document.getElementById('sUncapped').checked;
+
+  if (editingSubId) {
+    const s = p.subs.find(x => x.id === editingSubId);
+    if (!s) return closeSubEdit();
+    s.name = name;
+    s.unit = unit;
+    s.target = target;
+    s.levelEnabled = levelEnabled;
+    s.levels = levels.length ? levels : s.levels;
+    s.mult = mult;
+    s.maxLevel = maxLevel > 0 ? maxLevel : 0;
+    s.uncapped = uncapped;
+    if (isGroup) { s.passed = false; s.passDate = ''; }
+  } else {
+    p.subs.push({
+      id: Date.now(),
+      name, unit, target,
+      count: 0, passed: false, passDate: '',
+      levelEnabled,
+      levels: levels.length ? levels : [10,100,200,400,800],
+      mult, maxLevel: maxLevel > 0 ? maxLevel : 0,
+      uncapped
+    });
+  }
+  closeSubEdit(); save();
+}
+function practiceSub(pid, subId, amount) {
+  const p = data.projects.find(x => x.id === pid);
+  if (!p) return;
+  const s = p.subs.find(x => x.id === subId);
+  if (!s) return;
+  let amt = amount;
+  if (amt === undefined) {
+    const input = document.getElementById('subAmt-' + pid + '-' + subId);
+    amt = Number(input.value);
+    if (!amt || amt <= 0) return alert('请输入大于 0 的数量');
+    input.value = '';
+  }
+  amt = Number(amt);
+  s.count = num((s.count || 0) + amt);
+  p.logs.push({ date: today(), amount: amt, ts: newTs(), subId: subId });
+  save();
+}
+function undoSub(pid, subId) {
+  const p = data.projects.find(x => x.id === pid);
+  if (!p) return;
+  const s = p.subs.find(x => x.id === subId);
+  if (!s || s.count <= 0) return;
+  let idx = -1;
+  for (let i = p.logs.length - 1; i >= 0; i--) {
+    if (p.logs[i].subId === subId) { idx = i; break; }
+  }
+  if (idx >= 0) {
+    const removed = Number(p.logs[idx].amount || 0);
+    p.logs.splice(idx, 1);
+    s.count = num(Math.max(0, s.count - removed));
+  }
+  save();
+}
+function passSub(pid, subId) {
+  const p = data.projects.find(x => x.id === pid);
+  if (!p) return;
+  if (p.groupMode) return;
+  const s = p.subs.find(x => x.id === subId);
+  if (!s) return;
+  if (s.count < s.target) {
+    if (!confirm('还没达到 ' + s.target + '（当前 ' + s.count + '），确定手动过关？')) return;
+  }
+  s.passed = true; s.passDate = today();
+  save();
+}
+function unpassSub(pid, subId) {
+  const p = data.projects.find(x => x.id === pid);
+  if (!p) return;
+  const s = p.subs.find(x => x.id === subId);
+  if (!s) return;
+  s.passed = false; s.passDate = '';
+  save();
+}
+function delSub(pid, subId) {
+  const p = data.projects.find(x => x.id === pid);
+  if (!p) return;
+  if (!confirm('删除这个子项目？（记录仍保留在主项目里）')) return;
+  p.subs = p.subs.filter(x => x.id !== subId);
+  save();
+}
+function render() {
+  document.getElementById('streakAll').textContent = globalStreak();
+
+  const addBody = document.getElementById('addBody');
+  const addBtn = document.getElementById('addToggleBtn');
+  if (addBody) addBody.style.display = data.ui.addOpen ? '' : 'none';
+  if (addBtn) addBtn.textContent = data.ui.addOpen ? '折叠' : '展开';
+
+  const logsBody = document.getElementById('logsBody');
+  const logsBtn = document.getElementById('logsToggleBtn');
+  if (logsBody) logsBody.style.display = data.ui.logsOpen ? '' : 'none';
+  if (logsBtn) logsBtn.textContent = data.ui.logsOpen ? '折叠' : '展开';
+
+  const todos = data.projects.filter(p => !p.groupMode && p.dailyGoal > 0 && todayTotal(p) < p.dailyGoal);
+  const todoEl = document.getElementById('todayTodo');
+  if (todos.length) {
+    todoEl.innerHTML = '<div class="small" style="margin:0;color:#92400e">今日待练：' +
+      todos.map(p => esc(p.name) + '(' + num(todayTotal(p)) + '/' + p.dailyGoal + ')').join('、') + '</div>';
+  } else if (data.projects.length) {
+    todoEl.innerHTML = '<div class="small" style="margin:0;color:#166534">今日目标全部完成 ✅</div>';
+  } else {
+    todoEl.innerHTML = '';
+  }
+
+  const todoCard = document.getElementById('todoCard');
+  const todoList = document.getElementById('todoList');
+  if (todos.length) {
+    todoCard.style.display = '';
+    todoList.innerHTML = todos.map(p => {
+      const t = todayTotal(p);
+      const prog = Math.min(100, t / p.dailyGoal * 100);
+      return '<div class="todo-item">' +
+        '<div style="flex:1">' +
+          '<div><b>' + esc(p.name) + '</b> <span class="small">' + num(t) + '/' + p.dailyGoal + ' ' + esc(p.unit) + '</span></div>' +
+          '<div class="bar" style="margin-top:4px"><div style="width:' + prog + '%"></div></div>' +
+        '</div>' +
+        '<div class="row" style="margin-left:8px">' +
+          '<button class="mini" onclick="addLog(' + p.id + ',5)">+5</button>' +
+          '<button class="mini" onclick="addLog(' + p.id + ',10)">+10</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } else {
+    todoCard.style.display = 'none';
+  }
+
+  const sel = document.getElementById('sortBy');
+  if (sel && sel.value !== (data.sortBy || 'default')) sel.value = data.sortBy || 'default';
+
+  const wrap = document.getElementById('projects');
+  const list = sortedProjects();
+  if (!list.length) {
+    wrap.innerHTML = '<div class="card">还没有项目，先在上面添加一个。</div>';
+  } else {
+    wrap.innerHTML = list.map(p => renderProjectCard(p)).join('');
+  }
+
+  const statsBody = document.getElementById('statsBody');
+  const statsBtn = document.getElementById('statsToggleBtn');
+  if (statsBody) statsBody.style.display = data.ui.statsOpen ? '' : 'none';
+  if (statsBtn) statsBtn.textContent = data.ui.statsOpen ? '折叠' : '展开';
+
+  renderStats();
+
+  const all = [];
+  data.projects.forEach(p => {
+    p.logs.forEach(l => {
+      const sub = (p.subs || []).find(s => s.id === l.subId);
+      all.push({
+        pid: p.id, pname: p.name, punit: p.unit,
+        date: l.date, amount: l.amount, ts: l.ts || 0,
+        subName: sub ? sub.name : '',
+        subUnit: sub ? (sub.unit || '次') : ''
+      });
+    });
+  });
+  all.sort((a, b) => (b.ts || 0) - (a.ts || 0) || b.date.localeCompare(a.date));
+  const logsEl = document.getElementById('logs');
+  if (!all.length) {
+    logsEl.innerHTML = '<div class="small">还没有练习记录。</div>';
+  } else {
+    logsEl.innerHTML = all.slice(0, 50).map(l =>
+      '<div class="log">' +
+        '<div>' + l.date + ' · ' + esc(l.pname) +
+          (l.subName ? ' / <span style="color:#7c3aed">' + esc(l.subName) + '</span>' : '') +
+          ' · <b>' + num(l.amount) + ' ' + esc(l.subName ? l.subUnit : l.punit) + '</b></div>' +
+        '<div class="row">' +
+          '<button class="sec mini" onclick="openLogEdit(' + l.pid + ',' + l.ts + ')">改</button>' +
+          '<button class="sec mini" onclick="delLog(' + l.pid + ',' + l.ts + ')">删</button>' +
+        '</div>' +
+      '</div>'
+    ).join('');
+  }
+}
+
+function renderProjectCard(p) {
+  const t = total(p);
+  const td = todayTotal(p);
+  const info = getLevelInfo(p, t);
+  const streak = projectStreak(p);
+  const subs = p.subs || [];
+  const passedCount = subs.filter(s => s.passed).length;
+  const isGroup = !!p.groupMode;
+  const collapsed = data.ui.projCollapsed[p.id] === true;
+
+  let headerTags = '<span class="tag">' + esc(p.category) + '</span> ';
+  if (isGroup) {
+    headerTags += '<span class="modeTag">分组</span> ';
+  } else {
+    headerTags += '<span class="tag lv">Lv.' + info.level + '</span> ';
+  }
+  if (streak > 0) headerTags += '<span class="tag streak">🔥 ' + streak + '天</span>';
+  if (!isGroup && p.dailyGoal > 0) {
+    headerTags += td >= p.dailyGoal
+      ? ' <span class="tag done">今日达标 ' + num(td) + '/' + p.dailyGoal + '</span>'
+      : ' <span class="tag">今日 ' + num(td) + '/' + p.dailyGoal + '</span>';
+  }
+
+  const btnGroup =
+    '<button class="sec iconbtn" onclick="moveProject(' + p.id + ',-1)" title="上移">↑</button>' +
+    '<button class="sec iconbtn" onclick="moveProject(' + p.id + ',1)" title="下移">↓</button>' +
+    '<button class="sec mini" onclick="toggleProjCollapse(' + p.id + ')">' + (collapsed ? '展开' : '折叠') + '</button>' +
+    '<button class="sec mini" onclick="openEdit(' + p.id + ')">编辑</button>' +
+    '<button class="warn mini" onclick="delProject(' + p.id + ')">删</button>';
+
+  if (collapsed) {
+    let brief = '';
+    if (isGroup) {
+      brief = subs.length + ' 个子项目';
+    } else {
+      brief = '累计 ' + num(t) + ' ' + esc(p.unit) + ' · 今日 ' + num(td) + ' ' + esc(p.unit);
+    }
+    return '<div class="card mini-card">' +
+      '<div class="row" style="justify-content:space-between">' +
+        '<div><b>' + esc(p.name) + '</b> ' + headerTags +
+          ' <span class="small" style="margin-left:4px">' + brief + '</span>' +
+        '</div>' +
+        '<div class="row">' + btnGroup + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  let mainHtml = '';
+  if (!isGroup) {
+    let progress = 100;
+    let nextText = '已达最高级';
+    if (info.next !== null) {
+      progress = Math.max(0, Math.min(100, (t - info.base) / (info.next - info.base) * 100));
+      nextText = '下一级 Lv.' + (info.level + 1) + ' 需要 ' + info.next + '，还差 ' + num(Math.max(0, info.next - t));
+    } else if (info.capped) {
+      nextText = '已封顶 Lv.' + info.level;
+    }
+    mainHtml =
+      '<div class="small">单位：' + esc(p.unit) + ' · 累计：' + num(t) + ' ' + esc(p.unit) + ' · 今日：' + num(td) + ' ' + esc(p.unit) + '</div>' +
+      '<div class="bar"><div style="width:' + progress + '%"></div></div>' +
+      '<div class="small">' + nextText + '</div>' +
+      '<div class="row" style="margin-top:8px">' +
+        '<input id="amount-' + p.id + '" type="number" step="0.1" placeholder="本次数量" style="flex:1;min-width:100px">' +
+        '<button onclick="addLog(' + p.id + ')">记录</button>' +
+        '<button class="sec mini" onclick="addLog(' + p.id + ',5)">+5</button>' +
+        '<button class="sec mini" onclick="addLog(' + p.id + ',10)">+10</button>' +
+        '<button class="sec mini" onclick="addLog(' + p.id + ',20)">+20</button>' +
+      '</div>';
+  } else {
+    mainHtml = '<div class="small">分组模式：' + subs.length + ' 个子项目，各自独立升级。</div>';
+  }
+
+  const subOpen = data.ui.subOpen[p.id] !== false;
+  const subBodyStyle = subOpen ? '' : 'display:none';
+  const subTitle = isGroup
+    ? '子项目（' + subs.length + ' 个）'
+    : '子项目/知识点（' + passedCount + '/' + subs.length + ' 已过关）';
+
+  let subHtml = subs.map(s => renderSubItem(p, s)).join('');
+
+  return '<div class="card">' +
+    '<div class="row" style="justify-content:space-between">' +
+      '<div><b>' + esc(p.name) + '</b> ' + headerTags + '</div>' +
+      '<div class="row">' + btnGroup + '</div>' +
+    '</div>' +
+    mainHtml +
+    '<div class="subarea">' +
+      '<div class="row" style="justify-content:space-between">' +
+        '<div class="small" style="font-weight:700">' + subTitle + '</div>' +
+        '<button class="sec mini" id="subToggle-' + p.id + '" onclick="toggleSub(' + p.id + ')">' + (subOpen ? '折叠' : '展开') + '</button>' +
+      '</div>' +
+      '<div id="subBody-' + p.id + '" style="' + subBodyStyle + '">' +
+        (subs.length ? subHtml : '<div class="small">还没有子项目，可以加一个。</div>') +
+        '<div class="row" style="margin-top:8px">' +
+          '<button class="sec mini" onclick="openSubEdit(' + p.id + ')">+ 添加子项目</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderSubItem(p, s) {
+  const unit = s.unit || '次';
+  const isGroup = !!p.groupMode;
+  const levelOnly = subIsLevelOnly(p, s);
+
+  let levelTag = '';
+  let barHtml = '';
+  let infoText = '';
+  let status = '';
+
+  if (levelOnly) {
+    const li = getLevelInfo(s, s.count || 0);
+    let progress = 100;
+    let nextText = '已达最高级';
+    if (li.next !== null) {
+      progress = Math.max(0, Math.min(100, ((s.count || 0) - li.base) / (li.next - li.base) * 100));
+      nextText = '下一级 Lv.' + (li.level + 1) + ' 需要 ' + li.next + '，还差 ' + num(Math.max(0, li.next - (s.count || 0)));
+    } else if (li.capped) {
+      nextText = '已封顶 Lv.' + li.level;
+    }
+    levelTag = '<span class="tag lv">Lv.' + li.level + '</span> ';
+    barHtml = '<div class="bar"><div style="width:' + progress + '%"></div></div>';
+    infoText = '累计 ' + num(s.count || 0) + ' ' + esc(unit) + ' · ' + nextText;
+
+    if (!isGroup) {
+      if (s.passed) status = '<span class="tag done">✅ 已过关 ' + s.passDate + '</span>';
+      else if ((s.count || 0) >= s.target) status = '<span class="tag lv">可过关</span>';
+      infoText += ' · 过关需 ' + s.target;
+    }
+  } else {
+    const prog = s.target > 0 ? Math.min(100, (s.count || 0) / s.target * 100) : 0;
+    barHtml = '<div class="bar"><div class="' + (s.passed ? 'green' : '') + '" style="width:' + prog + '%"></div></div>';
+    infoText = '已刷 ' + num(s.count || 0) + ' 次 · 过关需 ' + s.target + ' 次';
+    if (s.passed) status = '<span class="tag done">✅ 已过关 ' + s.passDate + '</span>';
+    else if ((s.count || 0) >= s.target) status = '<span class="tag lv">可过关</span>';
+  }
+
+  let passedBtn = '';
+  if (!isGroup) {
+    passedBtn = s.passed
+      ? '<button class="mini sec" onclick="unpassSub(' + p.id + ',' + s.id + ')">取消过关</button>'
+      : '<button class="mini ok" onclick="passSub(' + p.id + ',' + s.id + ')">过关</button>';
+  }
+
+  const amtId = 'subAmt-' + p.id + '-' + s.id;
+
+  return '<div class="subitem">' +
+    '<div class="row" style="justify-content:space-between">' +
+      '<div><b>' + esc(s.name) + '</b> ' + levelTag + status +
+        (s.unit ? ' <span class="small">(' + esc(s.unit) + ')</span>' : '') +
+      '</div>' +
+      '<div class="row">' +
+        '<button class="sec iconbtn" onclick="moveSub(' + p.id + ',' + s.id + ',-1)" title="上移">↑</button>' +
+        '<button class="sec iconbtn" onclick="moveSub(' + p.id + ',' + s.id + ',1)" title="下移">↓</button>' +
+        '<button class="mini sec" onclick="openSubEdit(' + p.id + ',' + s.id + ')">改</button>' +
+        '<button class="mini warn" onclick="delSub(' + p.id + ',' + s.id + ')">删</button>' +
+      '</div>' +
+    '</div>' +
+    barHtml +
+    '<div class="small">' + infoText + '</div>' +
+    '<div class="row" style="margin-top:6px">' +
+      '<input id="' + amtId + '" type="number" step="0.1" placeholder="数量" style="width:80px">' +
+      '<button class="mini" onclick="practiceSub(' + p.id + ',' + s.id + ')">记录</button>' +
+      '<button class="mini sec" onclick="practiceSub(' + p.id + ',' + s.id + ',1)">+1</button>' +
+      '<button class="mini sec" onclick="practiceSub(' + p.id + ',' + s.id + ',5)">+5</button>' +
+      '<button class="mini sec" onclick="practiceSub(' + p.id + ',' + s.id + ',10)">+10</button>' +
+      '<button class="mini sec" onclick="undoSub(' + p.id + ',' + s.id + ')">撤销</button>' +
+      passedBtn +
+    '</div>' +
+  '</div>';
+}
+
+function renderStats() {
+  const series7 = dailySeries(data.projects, 7);
+  const maxV = Math.max.apply(null, series7.map(x => x.v).concat([1]));
+  document.getElementById('chart7').innerHTML = series7.map(x => {
+    const h = Math.max(2, Math.round(x.v / maxV * 100));
+    return '<div class="col">' +
+      '<div class="num">' + (x.v || '') + '</div>' +
+      '<div class="bar2" style="height:' + h + '%"></div>' +
+      '<div class="lbl">' + x.date.slice(5) + '</div>' +
+    '</div>';
+  }).join('');
+
+  let weekSum = 0, prevWeekSum = 0, monthSum = 0, allSum = 0;
+  data.projects.forEach(p => {
+    weekSum += sumSince(p, 7);
+    prevWeekSum += sumBetween(p, 13, 7);
+    monthSum += sumSince(p, 30);
+    allSum += total(p);
+  });
+  document.getElementById('weekSum').textContent = num(weekSum);
+  document.getElementById('prevWeekSum').textContent = num(prevWeekSum);
+  document.getElementById('monthSum').textContent = num(monthSum);
+  document.getElementById('allSum').textContent = num(allSum);
+
+  const ppEl = document.getElementById('perProjectStats');
+  if (!data.projects.length) {
+    ppEl.innerHTML = '<div class="small">还没有项目。</div>';
+    return;
+  }
+  ppEl.innerHTML = data.projects.map(p => {
+    const t = total(p);
+    const wk = sumSince(p, 7);
+    const pw = sumBetween(p, 13, 7);
+    const mo = sumSince(p, 30);
+    const info = getLevelInfo(p, t);
+    const subs = p.subs || [];
+    const passedCount = subs.filter(s => s.passed).length;
+    const open = data.ui.projStatOpen[p.id] === true;
+    const bodyStyle = open ? '' : 'display:none';
+
+    const pSeries = dailySeries([p], 7);
+    const pMax = Math.max.apply(null, pSeries.map(x => x.v).concat([1]));
+    const chartHtml = pSeries.map(x => {
+      const h = Math.max(2, Math.round(x.v / pMax * 100));
+      return '<div class="col">' +
+        '<div class="num">' + (x.v || '') + '</div>' +
+        '<div class="bar2" style="height:' + h + '%"></div>' +
+        '<div class="lbl">' + x.date.slice(5) + '</div>' +
+      '</div>';
+    }).join('');
+
+    const diff = wk - pw;
+    const diffText = diff > 0 ? '↑ ' + num(diff) : (diff < 0 ? '↓ ' + num(Math.abs(diff)) : '持平');
+
+    let subStatHtml = '';
+    if (subs.length) {
+      subStatHtml = '<div class="small" style="margin-top:8px;font-weight:700">子项目</div>' +
+        subs.map(s => {
+          const sc = s.count || 0;
+          const isGroup = !!p.groupMode;
+          const levelOnly = subIsLevelOnly(p, s);
+          let line = '';
+          if (levelOnly) {
+            const li = getLevelInfo(s, sc);
+            line = 'Lv.' + li.level + ' · 累计 ' + num(sc) + ' ' + esc(s.unit || '次');
+          } else {
+            line = '已刷 ' + num(sc) + ' · 过关需 ' + s.target;
+          }
+          const pTag = (!isGroup && s.passed) ? ' <span class="tag done">✅</span>' : '';
+          return '<div class="statrow"><span>' + esc(s.name) + pTag + '</span><b>' + line + '</b></div>';
+        }).join('');
+    }
+
+    const levelTag = p.groupMode
+      ? '<span class="modeTag">分组</span>'
+      : '<span class="tag lv">Lv.' + info.level + '</span>';
+
+    const subLabel = p.groupMode ? '子项目' : '子项目过关';
+    const subValue = p.groupMode ? (subs.length + ' 个') : (passedCount + ' / ' + subs.length);
+
+    return '<div class="projstat">' +
+      '<div class="row" style="justify-content:space-between">' +
+        '<div><b>' + esc(p.name) + '</b> ' + levelTag +
+          ' <span class="small" style="margin-left:6px">本周 ' + num(wk) + ' · 累计 ' + num(t) + '</span>' +
+        '</div>' +
+        '<button class="sec mini" id="projStatToggle-' + p.id + '" onclick="toggleProjStat(' + p.id + ')">' + (open ? '折叠' : '展开') + '</button>' +
+      '</div>' +
+      '<div id="projStat-' + p.id + '" style="' + bodyStyle + '">' +
+        '<div class="small" style="margin-top:6px">最近 7 天</div>' +
+        '<div class="chart mini">' + chartHtml + '</div>' +
+        '<div style="margin-top:8px">' +
+          '<div class="statrow"><span>本周</span><b>' + num(wk) + ' ' + esc(p.unit) + '</b></div>' +
+          '<div class="statrow"><span>上周</span><b>' + num(pw) + ' ' + esc(p.unit) + '</b></div>' +
+          '<div class="statrow"><span>环比</span><b>' + diffText + '</b></div>' +
+          '<div class="statrow"><span>本月</span><b>' + num(mo) + ' ' + esc(p.unit) + '</b></div>' +
+          '<div class="statrow"><span>累计</span><b>' + num(t) + ' ' + esc(p.unit) + '</b></div>' +
+          '<div class="statrow"><span>' + subLabel + '</span><b>' + subValue + '</b></div>' +
+        '</div>' +
+        subStatHtml +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+function exportData() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '熟练度系统备份.json';
+  a.click();
+}
+function importData() { document.getElementById('file').click(); }
+function loadFile(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const obj = JSON.parse(r.result);
+      if (!obj || !Array.isArray(obj.projects)) throw new Error('格式错误');
+      data = obj;
+      if (!data.sortBy) data.sortBy = 'default';
+      if (!data.ui) data.ui = {};
+      if (typeof data.ui.statsOpen !== 'boolean') data.ui.statsOpen = true;
+      if (typeof data.ui.addOpen !== 'boolean') data.ui.addOpen = true;
+      if (typeof data.ui.logsOpen !== 'boolean') data.ui.logsOpen = true;
+      if (!data.ui.subOpen) data.ui.subOpen = {};
+      if (!data.ui.projStatOpen) data.ui.projStatOpen = {};
+      if (!data.ui.projCollapsed) data.ui.projCollapsed = {};
+      data.projects.forEach(p => {
+        if (!Array.isArray(p.logs)) p.logs = [];
+        if (!Array.isArray(p.subs)) p.subs = [];
+        if (typeof p.groupMode !== 'boolean') p.groupMode = false;
+        p.subs.forEach(s => {
+          if (typeof s.levelEnabled !== 'boolean') s.levelEnabled = false;
+          if (typeof s.unit !== 'string') s.unit = '';
+          if (!Array.isArray(s.levels)) s.levels = [10,100,200,400,800];
+          if (typeof s.mult !== 'number') s.mult = 2;
+          if (typeof s.maxLevel !== 'number') s.maxLevel = 0;
+          if (typeof s.uncapped !== 'boolean') s.uncapped = true;
+          if (typeof s.count !== 'number') s.count = 0;
+          if (typeof s.target !== 'number') s.target = 1;
+        });
+      });
+      save();
+    } catch (err) {
+      alert('导入失败：' + err.message);
+    }
+  };
+  r.readAsText(f);
+}
+render();
+</script>
+</body>
+</html>
